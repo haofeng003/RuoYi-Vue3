@@ -1,0 +1,425 @@
+<template>
+  <div class="app-container">
+    <el-form v-show="showSearch" ref="queryRef" :inline="true" :model="queryParams" label-width="68px">
+      <el-form-item label="学生姓名" prop="studentName">
+        <el-input
+            v-model="queryParams.studentName"
+            clearable
+            placeholder="请输入学生姓名"
+            @keyup.enter="handleQuery"
+        />
+      </el-form-item>
+      <el-form-item label="班级" prop="classId">
+        <!--        <el-input-->
+        <!--          v-model="queryParams.classId"-->
+        <!--          placeholder="请输入班级id"-->
+        <!--          clearable-->
+        <!--          @keyup.enter="handleQuery"-->
+        <!--        />-->
+        <el-select v-model="queryParams.classId" filterable placeholder="请选择所在班级" @keyup.enter="handleQuery">
+          <el-option
+              v-for="item in ClazzList"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id">
+          </el-option>
+        </el-select>
+
+      </el-form-item>
+      <el-form-item label="创建时间" prop="createTime">
+        <el-date-picker v-model="queryParams.createTime"
+                        clearable
+                        placeholder="请选择创建时间"
+                        type="date"
+                        value-format="YYYY-MM-DD">
+        </el-date-picker>
+      </el-form-item>
+      <el-form-item>
+        <el-button icon="Search" type="primary" @click="handleQuery">搜索</el-button>
+        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-row :gutter="10" class="mb8">
+      <!--      <el-col :span="1.5">-->
+      <!--        <el-button-->
+      <!--            v-hasPermi="['kaoqin:studentAttendance:add']"-->
+      <!--            icon="Plus"-->
+      <!--            plain-->
+      <!--            type="primary"-->
+      <!--            @click="handleAdd"-->
+      <!--        >新增-->
+      <!--        </el-button>-->
+      <!--      </el-col>-->
+      <!--      <el-col :span="1.5">-->
+      <!--        <el-button-->
+      <!--            v-hasPermi="['kaoqin:studentAttendance:edit']"-->
+      <!--            :disabled="single"-->
+      <!--            icon="Edit"-->
+      <!--            plain-->
+      <!--            type="success"-->
+      <!--            @click="handleUpdate"-->
+      <!--        >修改-->
+      <!--        </el-button>-->
+      <!--      </el-col>-->
+      <!--      <el-col :span="1.5">-->
+      <!--        <el-button-->
+      <!--            v-hasPermi="['kaoqin:studentAttendance:remove']"-->
+      <!--            :disabled="multiple"-->
+      <!--            icon="Delete"-->
+      <!--            plain-->
+      <!--            type="danger"-->
+      <!--            @click="handleDelete"-->
+      <!--        >删除-->
+      <!--        </el-button>-->
+      <!--      </el-col>-->
+      <el-col :span="1.5">
+        <el-button
+            v-hasPermi="['kaoqin:studentAttendance:export']"
+            icon="Download"
+            plain
+            type="warning"
+            @click="handleExport"
+        >导出
+        </el-button>
+      </el-col>
+      <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
+    </el-row>
+
+    <el-table v-loading="loading" :data="studentAttendanceList" @selection-change="handleSelectionChange">
+      <!--      <el-table-column align="center" type="selection" width="55"/>-->
+      <el-table-column align="center" label="序号" prop="id" type="index" width="100"/>
+      <el-table-column align="center" label="学生" prop="studentId">
+        <template #default="scope">
+          <div v-for="stu in studentList" :key="stu.id">
+             <span v-if="scope.row.studentId === stu.id ">
+                 {{ stu.name }}
+             </span>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="所在班级" prop="classId">
+        <template #default="scope">
+          <div v-for="clazz in ClazzList" :key="clazz.id" placeholder="请选择班级id">
+            <span v-if="clazz.id === scope.row.classId">
+                  {{ clazz.name }}
+            </span>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="上午考勤" prop="shang"/>
+      <el-table-column align="center" label="下午考勤" prop="xia"/>
+      <el-table-column align="center" label="晚上考勤" prop="wan"/>
+      <el-table-column align="center" label="自习下课前" prop="shi"/>
+      <el-table-column align="center" label="创建时间" prop="createTime" width="180">
+        <template #default="scope">
+          <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="更新时间" prop="updateTime" width="180">
+        <template #default="scope">
+          <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" class-name="small-padding fixed-width" label="操作">
+        <template #default="scope">
+          <!--          <el-button v-hasPermi="['kaoqin:studentAttendance:edit']" icon="Edit" link type="primary"-->
+          <!--                     @click="handleUpdate(scope.row)">修改-->
+          <!--          </el-button>-->
+          <!--          <el-button v-hasPermi="['kaoqin:studentAttendance:remove']" icon="Delete" link type="primary"-->
+          <!--                     @click="handleDelete(scope.row)">删除-->
+          <!--          </el-button>-->
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <pagination
+        v-show="total>0"
+        v-model:limit="queryParams.pageSize"
+        v-model:page="queryParams.pageNum"
+        :total="total"
+        @pagination="getList"
+    />
+    <!-- 添加或修改学生考勤详细对话框 -->
+    <el-dialog v-model="open" :title="title" append-to-body width="500px">
+      <el-form ref="studentAttendanceRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="学生id" prop="studentId">
+          <el-input v-model="form.studentId" placeholder="请输入学生id"/>
+        </el-form-item>
+        <el-form-item label="学生姓名" prop="studentName">
+          <el-input v-model="form.studentName" placeholder="请输入学生姓名"/>
+        </el-form-item>
+        <el-form-item label="班级id" prop="classId">
+          <el-input v-model="form.classId" placeholder="请输入班级id"/>
+        </el-form-item>
+        <el-form-item label="上午考勤" prop="shang">
+          <el-checkbox-group v-model="form.shang">
+            <el-checkbox
+                v-for="dict in shang"
+                :key="dict.value"
+                :label="dict.value">
+              {{ dict.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="下午考勤" prop="xia">
+          <el-checkbox-group v-model="form.xia">
+            <el-checkbox
+                v-for="dict in shang"
+                :key="dict.value"
+                :label="dict.value">
+              {{ dict.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="晚上考勤" prop="wan">
+          <el-checkbox-group v-model="form.wan">
+            <el-checkbox
+                v-for="dict in shang"
+                :key="dict.value"
+                :label="dict.value">
+              {{ dict.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="自习下课前" prop="shi">
+          <el-checkbox-group v-model="form.shi">
+            <el-checkbox
+                v-for="dict in shang"
+                :key="dict.value"
+                :label="dict.value">
+              {{ dict.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+
+    <!-- 添加或修改学生考勤详细对话框 -->
+    <el-dialog v-model="open" :title="title" append-to-body width="500px">
+      <el-form ref="studentAttendanceRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="学生id" prop="studentId">
+          <el-input v-model="form.studentId" placeholder="请输入学生id"/>
+        </el-form-item>
+        <el-form-item label="学生姓名" prop="studentName">
+          <el-input v-model="form.studentName" placeholder="请输入学生姓名"/>
+        </el-form-item>
+        <el-form-item label="所在班级" prop="classId">
+          <el-input v-model="form.classId" placeholder="请输入班级id"/>
+        </el-form-item>
+
+        <el-form-item label="上午考勤" prop="shang">
+          <el-input v-model="form.shang" placeholder="请输入上午考勤"/>
+        </el-form-item>
+        <el-form-item label="下午考勤" prop="xia">
+          <el-input v-model="form.xia" placeholder="请输入下午考勤"/>
+        </el-form-item>
+        <el-form-item label="晚上考勤" prop="wan">
+          <el-input v-model="form.wan" placeholder="请输入晚上考勤"/>
+        </el-form-item>
+        <el-form-item label="自习下课前" prop="shi">
+          <el-input v-model="form.shi" placeholder="请输入自习下课前"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script name="StudentAttendance" setup>
+import {
+  addStudentAttendance,
+  delStudentAttendance,
+  getStudentAttendance,
+  listStudentAttendance,
+  updateStudentAttendance
+} from "@/api/kaoqin/studentAttendance";
+import {listClazz} from "@/api/kaoqin/clazz.js";
+import {loadAllParams} from "@/api/page.js";
+import {listStudent} from "@/api/kaoqin/student.js";
+
+const {proxy} = getCurrentInstance();
+
+const studentAttendanceList = ref([]);
+const open = ref(false);
+const loading = ref(true);
+const showSearch = ref(true);
+const ids = ref([]);
+const single = ref(true);
+const multiple = ref(true);
+const total = ref(0);
+const title = ref("");
+
+const data = reactive({
+  form: {},
+  queryParams: {
+    pageNum: 1,
+    pageSize: 10,
+    studentName: null,
+    createTime: null,
+    classId: null,
+  },
+  rules: {
+    studentId: [
+      {required: true, message: "学生id不能为空", trigger: "blur"}
+    ],
+    classId: [
+      {required: true, message: "班级id不能为空", trigger: "blur"}
+    ],
+  }
+});
+
+const {queryParams, form, rules} = toRefs(data);
+
+/** 查询学生考勤详细列表 */
+function getList() {
+  loading.value = true;
+  listStudentAttendance(queryParams.value).then(response => {
+    studentAttendanceList.value = response.rows;
+    total.value = response.total;
+    loading.value = false;
+  });
+}
+
+// 取消按钮
+function cancel() {
+  open.value = false;
+  reset();
+}
+
+// 表单重置
+function reset() {
+  form.value = {
+    id: null,
+    studentId: null,
+    studentName: null,
+    classId: null,
+    shang: null,
+    xia: null,
+    wan: null,
+    shi: null,
+    createBy: null,
+    updateBy: null,
+    createTime: null,
+    updateTime: null
+  };
+  proxy.resetForm("studentAttendanceRef");
+}
+
+/** 搜索按钮操作 */
+function handleQuery() {
+  queryParams.value.pageNum = 1;
+  getList();
+}
+
+/** 重置按钮操作 */
+function resetQuery() {
+  proxy.resetForm("queryRef");
+  handleQuery();
+}
+
+// 多选框选中数据
+function handleSelectionChange(selection) {
+  ids.value = selection.map(item => item.id);
+  single.value = selection.length != 1;
+  multiple.value = !selection.length;
+}
+
+/** 新增按钮操作 */
+function handleAdd() {
+  reset();
+  open.value = true;
+  title.value = "添加学生考勤详细";
+}
+
+/** 修改按钮操作 */
+function handleUpdate(row) {
+  reset();
+  const _id = row.id || ids.value
+  getStudentAttendance(_id).then(response => {
+    form.value = response.data;
+    open.value = true;
+    title.value = "修改学生考勤详细";
+  });
+}
+
+/** 提交按钮 */
+function submitForm() {
+  proxy.$refs["studentAttendanceRef"].validate(valid => {
+    if (valid) {
+      if (form.value.id != null) {
+        updateStudentAttendance(form.value).then(response => {
+          proxy.$modal.msgSuccess("修改成功");
+          open.value = false;
+          getList();
+        });
+      } else {
+        addStudentAttendance(form.value).then(response => {
+          proxy.$modal.msgSuccess("新增成功");
+          open.value = false;
+          getList();
+        });
+      }
+    }
+  });
+}
+
+/** 删除按钮操作 */
+function handleDelete(row) {
+  const _ids = row.id || ids.value;
+  proxy.$modal.confirm('是否确认删除学生考勤详细编号为"' + _ids + '"的数据项？').then(function () {
+    return delStudentAttendance(_ids);
+  }).then(() => {
+    getList();
+    proxy.$modal.msgSuccess("删除成功");
+  }).catch(() => {
+  });
+}
+
+/** 导出按钮操作 */
+function handleExport() {
+  proxy.download('kaoqin/studentAttendance/export', {
+    ...queryParams.value
+  }, `studentAttendance_${new Date().getTime()}.xlsx`)
+}
+
+/** 查询班级管理列表 */
+const ClazzList = ref([])
+
+function getClazzList() {
+  // loading.value = true;
+  listClazz(loadAllParams).then(response => {
+    ClazzList.value = response.rows;
+    // total.value = response.total;
+    // loading.value = false;
+  });
+}
+
+/** 查询学生管理列表 */
+const studentList = ref([])
+
+function getStudentList() {
+  // loading.value = true;
+  listStudent(loadAllParams).then(response => {
+    studentList.value = response.rows;
+    // total.value = response.total;
+    // loading.value = false;
+  });
+}
+
+getStudentList()
+getClazzList()
+getList();
+</script>
